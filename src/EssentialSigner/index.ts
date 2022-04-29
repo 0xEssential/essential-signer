@@ -1,30 +1,45 @@
 import {
-  BlockTag,
   Provider,
   TransactionRequest,
   TransactionResponse,
 } from '@ethersproject/abstract-provider';
+import { ExternallyOwnedAccount } from '@ethersproject/abstract-signer';
 import { Deferrable, defineReadOnly } from '@ethersproject/properties';
-import { logger, Signer } from 'ethers';
-import { Bytes, Logger, resolveProperties } from 'ethers/lib/utils';
+import { BigNumberish, logger, Signer, Wallet } from 'ethers';
+import { Bytes, Logger } from 'ethers/lib/utils';
 
-import { EIP712Domain, EIP712StructField } from './messageSigner';
+import EssentialForwarder from '../abi/EssentialForwarder.json';
+import {
+  EIP712Domain,
+  EIP712StructField,
+  signMetaTxRequest,
+} from './messageSigner';
 
-export class EssentialSigner extends Signer {
+export interface EssentialOverrides {
+  authorizer: string;
+  nftContract: string;
+  nftChainId: BigNumberish;
+  nftTokenId: BigNumberish;
+}
+
+export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
   readonly address: string;
+  readonly privateKey: string;
   readonly provider: Provider;
   readonly relayerUri: string;
 
   constructor(
     address: string,
-    provider: Provider,
+    provider?: Provider,
+    wallet?: Wallet,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
   ) {
-    logger.checkNew(new.target, EssentialSigner);
+    // logger.checkNew(new.target, EssentialSigner);
     super();
     defineReadOnly(this, 'address', address);
-    defineReadOnly(this, 'provider', provider);
+    provider && defineReadOnly(this, 'provider', provider);
+    wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
   }
 
@@ -40,34 +55,59 @@ export class EssentialSigner extends Signer {
     });
   }
 
-  // Populates "from" if unspecified, and calls with the transaction
-  async call(
-    transaction: Deferrable<TransactionRequest>,
-    blockTag?: BlockTag,
-  ): Promise<string> {
-    this._checkProvider('call');
-    const tx = await resolveProperties(this.checkTransaction(transaction));
-    return await this.provider.call(tx, blockTag);
-  }
-
   // Populates all fields in a transaction, signs it and sends it to the network
   async sendTransaction(
     transaction: Deferrable<TransactionRequest>,
-  ): Promise<TransactionResponse> {
-    this._checkProvider('sendTransaction');
-    const tx = await this.populateTransaction(transaction);
-    const signedTx = await this.signTransaction(tx);
-    return await this.provider.sendTransaction(signedTx);
+  ): Promise<TransactionResponse | any> {
+    const result = await signMetaTxRequest(
+      this.provider || this.privateKey,
+      // for us, this chain ID is the chain where our Forwarding and implementation contract live.
+      // our payload is network-agnostic, so it won't necessarily be the same chain as the provider.
+      parseInt(process.env.CHAIN_ID!, 10),
+      {
+        to: transaction.to,
+        from: transaction.from,
+        ...transaction.customData, // we're using the customData override, but it might be nice to strongly type these?
+        targetChainId: process.env.CHAIN_ID,
+        data: transaction.data,
+      },
+    );
+
+    const txResult = await fetch(this.relayerUri, {
+      method: 'POST',
+      body: JSON.stringify({ ...result, forwarder: EssentialForwarder }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then((resp) => resp.json())
+      .then(({ result, status }) => {
+        if (status === 'success') {
+          return JSON.parse(result);
+        }
+      });
+
+    return {
+      hash: txResult.txHash,
+      confirmations: 0,
+      from: transaction.from,
+      wait: async (_confirmations?: number) =>
+        Promise.reject('EssentialSigner does not support wait()'),
+    };
   }
 
+  // I think we want to throw for these because we want all signing to go
+  // through our whole solution.
+
   signMessage(_message: Bytes | string): Promise<string> {
-    return this._fail('VoidSigner cannot sign messages', 'signMessage');
+    return this._fail('EssentialSigner cannot sign messages', 'signMessage');
   }
 
   signTransaction(
     _transaction: Deferrable<TransactionRequest>,
   ): Promise<string> {
-    return this._fail('VoidSigner cannot sign transactions', 'signTransaction');
+    return this._fail(
+      'EssentialSigner cannot sign transactions',
+      'signTransaction',
+    );
   }
 
   _signTypedData(
@@ -75,7 +115,10 @@ export class EssentialSigner extends Signer {
     _types: Record<string, Array<EIP712StructField>>,
     _value: Record<string, any>,
   ): Promise<string> {
-    return this._fail('VoidSigner cannot sign typed data', 'signTypedData');
+    return this._fail(
+      'EssentialSigner cannot sign typed data',
+      'signTypedData',
+    );
   }
 
   connect(provider: Provider): EssentialSigner {
