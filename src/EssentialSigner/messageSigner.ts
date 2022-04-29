@@ -9,6 +9,8 @@ import {
 import { BigNumber } from 'ethers';
 import { hexZeroPad } from 'ethers/lib/utils';
 
+import { abi, address } from '../abi/EssentialForwarder.json';
+
 /**
  * Field in a User Defined Types
  */
@@ -141,18 +143,20 @@ export async function signMetaTxRequest(
   signer: Web3Provider | Provider | string,
   chainId: number,
   input: Record<string, any>,
-  forwarder: Contract,
 ): Promise<{
   signature: string;
   request: Record<string, any>;
 }> {
+  const forwarder = new Contract(address, abi);
   const request = await attachNonce(forwarder, input);
+
   const toSign = getMetaTxTypeData(
     forwarder.address,
     chainId,
     request,
-    forwarder.name || '0xEssential PlaySession',
+    '0xEssential PlaySession',
   );
+
   const signature = await signTypedData(signer, input.from, toSign);
 
   return {

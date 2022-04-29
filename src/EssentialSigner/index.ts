@@ -13,12 +13,19 @@ import { EIP712Domain, EIP712StructField } from './messageSigner';
 export class EssentialSigner extends Signer {
   readonly address: string;
   readonly provider: Provider;
+  readonly relayerUri: string;
 
-  constructor(address: string, provider: Provider) {
+  constructor(
+    address: string,
+    provider: Provider,
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    relayerUri: string = process.env.RELAYER_URI!,
+  ) {
     logger.checkNew(new.target, EssentialSigner);
     super();
     defineReadOnly(this, 'address', address);
     defineReadOnly(this, 'provider', provider);
+    defineReadOnly(this, 'relayerUri', relayerUri);
   }
 
   getAddress(): Promise<string> {
