@@ -35,7 +35,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
   ) {
-    // logger.checkNew(new.target, EssentialSigner);
+    logger.checkNew(new.target, EssentialSigner);
     super();
     defineReadOnly(this, 'address', address);
     provider && defineReadOnly(this, 'provider', provider);

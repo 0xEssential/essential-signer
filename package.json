@@ -1,25 +1,19 @@
 {
   "name": "@0xessential/signers",
-  "version": "0.0.1",
+  "version": "0.0.1-beta-3",
   "description": "",
-  "main": "build/main/index.js",
-  "types": "build/main/index.d.ts",
-  "module": "build/main/index.js",
+  "main": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
   "scripts": {
-    "build": "yarn tsc -p tsconfig.json",
-    "watch:build": "tsc -p tsconfig.json -w",
+    "build": "yarn tsc --project tsconfig.esm.json & yarn tsc --project tsconfig.cjs.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
-    "build/main",
-    "build/module",
+    "dist",
     "!**/*.spec.*",
-    "!**/*.json",
-    "CHANGELOG.md",
-    "LICENSE",
     "README.md"
   ],
-  "author": "",
+  "author": "sbauch",
   "license": "MIT",
   "dependencies": {
     "@metamask/eth-sig-util": "^4.0.1",
@@ -35,5 +29,10 @@
     "eslint-plugin-simple-import-sort": "^7.0.0",
     "prettier": "^2.6.2",
     "typescript": "^4.5.4"
+  },
+  "exports": {
+    "import": "./dist/esm/index.js",
+    "require": "./dist/cjs/index.js",
+    "default": "./dist/esm/index.js"
   }
 }
