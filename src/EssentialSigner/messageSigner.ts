@@ -10,6 +10,10 @@ import { BigNumber } from 'ethers';
 import { hexZeroPad } from 'ethers/lib/utils';
 
 import { abi, address } from '../abi/EssentialForwarder.json';
+import {
+  EssentialForwarder,
+  IForwardRequest,
+} from '../typechain/EssentialForwarder';
 
 /**
  * Field in a User Defined Types
@@ -40,7 +44,7 @@ export interface EIP712Domain {
 export interface EIP712Payload {
   types: PayloadTypes;
   primaryType: string;
-  message: Record<string, string | number>;
+  message: IForwardRequest.ERC721ForwardRequestStruct;
   domain: EIP712Domain;
 }
 
@@ -78,7 +82,7 @@ interface PayloadTypes {
 function getMetaTxTypeData(
   verifyingContract: string,
   _chainId: number,
-  message: Record<string, string | number>,
+  message: IForwardRequest.ERC721ForwardRequestStruct,
   name: string,
 ): EIP712Payload {
   return {
@@ -121,12 +125,14 @@ async function signTypedData(
 async function attachNonce(
   forwarder: Contract,
   input: Record<string, any>,
-): Promise<Record<string, any>> {
+): Promise<IForwardRequest.ERC721ForwardRequestStruct> {
   const nonce = await forwarder
     .getNonce(input.from)
     .then((nonce: BigNumber) => nonce.toString());
 
   return {
+    value: BigNumber.from(0),
+    gas: 1e6,
     to: input.to,
     from: input.from,
     authorizer: input.authorizer,
@@ -143,15 +149,18 @@ export async function signMetaTxRequest(
   signer: Web3Provider | Provider | string,
   chainId: number,
   input: Record<string, any>,
+  forwarder?: EssentialForwarder,
 ): Promise<{
   signature: string;
-  request: Record<string, any>;
+  request: IForwardRequest.ERC721ForwardRequestStruct;
 }> {
-  const forwarder = new Contract(address, abi);
-  const request = await attachNonce(forwarder, input);
+  const _forwarder =
+    forwarder || (new Contract(address, abi) as EssentialForwarder);
+
+  const request = await attachNonce(_forwarder, input);
 
   const toSign = getMetaTxTypeData(
-    forwarder.address,
+    _forwarder.address,
     chainId,
     request,
     '0xEssential PlaySession',
@@ -161,6 +170,6 @@ export async function signMetaTxRequest(
 
   return {
     signature,
-    request: { value: BigNumber.from(0), gas: 1e6, ...request },
+    request,
   };
 }

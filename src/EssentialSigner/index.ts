@@ -16,7 +16,7 @@ import {
 } from './messageSigner';
 
 export interface EssentialOverrides {
-  authorizer: string;
+  authorizer?: string;
   nftContract: string;
   nftChainId: BigNumberish;
   nftTokenId: BigNumberish;
@@ -30,7 +30,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
 
   constructor(
     address: string,
-    provider?: Provider,
+    provider: Provider,
     wallet?: Wallet,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
@@ -38,7 +38,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     logger.checkNew(new.target, EssentialSigner);
     super();
     defineReadOnly(this, 'address', address);
-    provider && defineReadOnly(this, 'provider', provider);
+    defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
   }
@@ -57,7 +57,9 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
 
   // Populates all fields in a transaction, signs it and sends it to the network
   async sendTransaction(
-    transaction: Deferrable<TransactionRequest>,
+    transaction: Deferrable<
+      TransactionRequest & { customData: EssentialOverrides }
+    >,
   ): Promise<TransactionResponse | any> {
     const result = await signMetaTxRequest(
       this.provider || this.privateKey,
@@ -67,7 +69,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       {
         to: transaction.to,
         from: transaction.from,
-        ...transaction.customData, // we're using the customData override, but it might be nice to strongly type these?
+        ...transaction.customData,
         targetChainId: process.env.CHAIN_ID,
         data: transaction.data,
       },
@@ -94,8 +96,8 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     };
   }
 
-  // I think we want to throw for these because we want all signing to go
-  // through our whole solution.
+  // We throw errors on direct signing requests to ensure developers
+  // correctly use EssentialSigner with their contract calls
 
   signMessage(_message: Bytes | string): Promise<string> {
     return this._fail('EssentialSigner cannot sign messages', 'signMessage');
