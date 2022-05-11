@@ -8,7 +8,6 @@ import { Deferrable, defineReadOnly } from '@ethersproject/properties';
 import { BigNumberish, logger, Signer, Wallet } from 'ethers';
 import { Bytes, Logger } from 'ethers/lib/utils';
 
-import EssentialForwarder from '../abi/EssentialForwarder.json';
 import { EssentialForwarderDeployments } from '../deployments';
 import {
   EIP712Domain,
