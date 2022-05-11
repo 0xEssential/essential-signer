@@ -1,6 +1,6 @@
 import { Provider } from '@ethersproject/abstract-provider';
 import { Contract } from '@ethersproject/contracts';
-import { Web3Provider } from '@ethersproject/providers';
+import { JsonRpcProvider, Web3Provider } from '@ethersproject/providers';
 import {
   signTypedData as signWithKey,
   SignTypedDataVersion,
@@ -9,7 +9,7 @@ import {
 import { BigNumber } from 'ethers';
 import { hexZeroPad } from 'ethers/lib/utils';
 
-import { abi, address } from '../abi/EssentialForwarder.json';
+import { EssentialForwarderDeployments } from '../deployments';
 import {
   EssentialForwarder,
   IForwardRequest,
@@ -145,17 +145,25 @@ async function attachNonce(
   };
 }
 
+function buildNetworkForwarder(chainId: number) {
+  const { abi, address } = EssentialForwarderDeployments[chainId];
+  return new Contract(
+    address,
+    abi,
+    new JsonRpcProvider(process.env.RPC_URL, chainId),
+  );
+}
+
 export async function signMetaTxRequest(
   signer: Web3Provider | Provider | string,
   chainId: number,
   input: Record<string, any>,
-  forwarder?: EssentialForwarder,
+  forwarder?: EssentialForwarder | Contract,
 ): Promise<{
   signature: string;
   request: IForwardRequest.ERC721ForwardRequestStruct;
 }> {
-  const _forwarder =
-    forwarder || (new Contract(address, abi) as EssentialForwarder);
+  const _forwarder = forwarder || buildNetworkForwarder(chainId);
 
   const request = await attachNonce(_forwarder, input);
 
