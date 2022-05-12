@@ -5,10 +5,11 @@ import {
 } from '@ethersproject/abstract-provider';
 import { ExternallyOwnedAccount } from '@ethersproject/abstract-signer';
 import { Deferrable, defineReadOnly } from '@ethersproject/properties';
-import { BigNumberish, logger, Signer, Wallet } from 'ethers';
+import { BigNumberish, logger, Wallet } from 'ethers';
 import { Bytes, Logger } from 'ethers/lib/utils';
 
-import { EssentialForwarderDeployments } from '../deployments';
+import EssentialForwarder from '../abi/EssentialForwarder.json';
+import { EssentialSigner } from './index';
 import {
   EIP712Domain,
   EIP712StructField,
@@ -22,7 +23,10 @@ export interface EssentialOverrides {
   nftTokenId: BigNumberish;
 }
 
-export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
+export class MockEssentialSigner
+  extends EssentialSigner
+  implements ExternallyOwnedAccount
+{
   readonly address: string;
   readonly privateKey: string;
   readonly provider: Provider;
@@ -35,8 +39,8 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
   ) {
-    logger.checkNew(new.target, EssentialSigner);
-    super();
+    logger.checkNew(new.target, MockEssentialSigner);
+    super(address, provider, wallet);
     defineReadOnly(this, 'address', address);
     defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
@@ -61,28 +65,23 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       TransactionRequest & { customData: EssentialOverrides }
     >,
   ): Promise<TransactionResponse | any> {
-    const chain = parseInt(process.env.CHAIN_ID!, 10);
-
     const result = await signMetaTxRequest(
-      this.privateKey || this.provider,
+      this.provider || this.privateKey,
       // for us, this chain ID is the chain where our Forwarding and implementation contract live.
       // our payload is network-agnostic, so it won't necessarily be the same chain as the provider.
-      chain,
+      parseInt(process.env.CHAIN_ID!, 10),
       {
         to: transaction.to,
         from: transaction.from,
         ...transaction.customData,
-        targetChainId: chain,
+        targetChainId: process.env.CHAIN_ID,
         data: transaction.data,
       },
     );
 
     const txResult = await fetch(this.relayerUri, {
       method: 'POST',
-      body: JSON.stringify({
-        ...result,
-        forwarder: EssentialForwarderDeployments[chain],
-      }),
+      body: JSON.stringify({ ...result, forwarder: EssentialForwarder }),
       headers: { 'Content-Type': 'application/json' },
     })
       .then((resp) => resp.json())
