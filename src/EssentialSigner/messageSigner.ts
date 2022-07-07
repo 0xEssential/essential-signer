@@ -74,9 +74,17 @@ const ForwardRequest = [
   { name: 'data', type: 'bytes' },
 ];
 
+const MinimalRequest = [
+  { name: 'to', type: 'address' },
+  { name: 'from', type: 'address' },
+  { name: 'targetChainId', type: 'uint256' },
+  { name: 'data', type: 'bytes' },
+];
+
 interface PayloadTypes {
   EIP712Domain: EIP712Struct;
   ForwardRequest: EIP712Struct;
+  MinimalRequest: EIP712Struct;
 }
 
 function getMetaTxTypeData(
@@ -84,11 +92,13 @@ function getMetaTxTypeData(
   _chainId: number,
   message: IForwardRequest.ERC721ForwardRequestStruct,
   name: string,
+  primaryType: string,
 ): EIP712Payload {
   return {
     types: {
       EIP712Domain,
       ForwardRequest,
+      MinimalRequest,
     },
     domain: {
       name,
@@ -96,7 +106,7 @@ function getMetaTxTypeData(
       verifyingContract,
       salt: hexZeroPad(BigNumber.from(_chainId).toHexString(), 32),
     },
-    primaryType: 'ForwardRequest',
+    primaryType,
     message,
   };
 }
@@ -172,6 +182,7 @@ export async function signMetaTxRequest(
     chainId,
     request,
     '0xEssential PlaySession',
+    request.nftContract ? 'ForwardRequest' : 'MinimalRequest',
   );
 
   const signature = await signTypedData(signer, input.from, toSign);

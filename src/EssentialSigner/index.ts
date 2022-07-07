@@ -27,6 +27,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
   readonly privateKey: string;
   readonly provider: Provider;
   readonly relayerUri: string;
+  onSubmit: () => void;
 
   constructor(
     address: string,
@@ -34,6 +35,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     wallet?: Wallet,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
+    onSubmit?: () => void,
   ) {
     logger.checkNew(new.target, EssentialSigner);
     super();
@@ -48,6 +50,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
+    this.onSubmit = onSubmit;
   }
 
   getAddress(): Promise<string> {
@@ -85,6 +88,9 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
         data: transaction.data,
       },
     );
+
+    // SUBMITTING META TX EVENT
+    this.onSubmit && this.onSubmit();
 
     const txResult = await fetch(this.relayerUri, {
       method: 'POST',
