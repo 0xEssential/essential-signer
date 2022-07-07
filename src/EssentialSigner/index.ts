@@ -27,6 +27,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
   readonly privateKey: string;
   readonly provider: Provider;
   readonly relayerUri: string;
+  onSubmit: () => void;
 
   constructor(
     address: string,
@@ -34,24 +35,32 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     wallet?: Wallet,
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     relayerUri: string = process.env.RELAYER_URI!,
+    onSubmit?: () => void,
   ) {
     logger.checkNew(new.target, EssentialSigner);
     super();
+
+    if (!relayerUri)
+      logger.throwError('Relayer URI not set', Logger.errors.INVALID_ARGUMENT, {
+        argument: 'relayerUri',
+        value: null,
+      });
+
     defineReadOnly(this, 'address', address);
     defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
+    this.onSubmit = onSubmit;
   }
 
   getAddress(): Promise<string> {
     return Promise.resolve(this.address);
   }
 
-  _fail(message: string, operation: string): Promise<any> {
-    return Promise.resolve().then(() => {
-      logger.throwError(message, Logger.errors.UNSUPPORTED_OPERATION, {
-        operation: operation,
-      });
+  async _fail(message: string, operation: string): Promise<any> {
+    await Promise.resolve();
+    logger.throwError(message, Logger.errors.UNSUPPORTED_OPERATION, {
+      operation: operation,
     });
   }
 
@@ -61,21 +70,27 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       TransactionRequest & { customData: EssentialOverrides }
     >,
   ): Promise<TransactionResponse | any> {
-    const chain = parseInt(process.env.CHAIN_ID!, 10);
+    // for us, this chain ID is the chain where our Forwarding and implementation contract live.
+    // our payload is network-agnostic, so it won't necessarily be the same chain as the provider.
+    const chain = process.env.CHAIN_ID
+      ? parseInt(process.env.CHAIN_ID, 10)
+      : 137;
 
     const result = await signMetaTxRequest(
       this.privateKey || this.provider,
-      // for us, this chain ID is the chain where our Forwarding and implementation contract live.
-      // our payload is network-agnostic, so it won't necessarily be the same chain as the provider.
       chain,
       {
         to: transaction.to,
         from: transaction.from,
+        authorizer: transaction.from,
         ...transaction.customData,
         targetChainId: chain,
         data: transaction.data,
       },
     );
+
+    // SUBMITTING META TX EVENT
+    this.onSubmit && this.onSubmit();
 
     const txResult = await fetch(this.relayerUri, {
       method: 'POST',

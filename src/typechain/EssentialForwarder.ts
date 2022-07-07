@@ -23,10 +23,10 @@ export declare namespace IForwardRequest {
     from: string;
     authorizer: string;
     to: string;
-    nftContract: string;
-    nftTokenId: BigNumberish;
-    nftChainId: BigNumberish;
-    targetChainId: BigNumberish;
+    nftContract?: string;
+    nftTokenId?: BigNumberish;
+    nftChainId?: BigNumberish;
+    targetChainId?: BigNumberish;
     value: BigNumberish;
     gas: BigNumberish;
     nonce: BigNumberish;
