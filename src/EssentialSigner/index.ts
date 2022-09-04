@@ -50,7 +50,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
-    this.onSubmit = onSubmit;
+    if (onSubmit) this.onSubmit = onSubmit;
   }
 
   getAddress(): Promise<string> {
