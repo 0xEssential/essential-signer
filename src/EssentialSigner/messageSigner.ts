@@ -13,7 +13,7 @@ import { EssentialForwarderDeployments } from '../deployments';
 import {
   EssentialForwarder,
   IForwardRequest,
-} from '../typechain/EssentialForwarder';
+} from '../typechain/contracts/fwd/EssentialForwarder';
 
 /**
  * Field in a User Defined Types
