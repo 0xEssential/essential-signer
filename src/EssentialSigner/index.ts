@@ -22,8 +22,17 @@ export interface EssentialOverrides {
   nftTokenId: BigNumberish;
 }
 
+export interface EssentialSignerConfig {
+  relayerUri?: string;
+  chainId?: number;
+  domainName?: string;
+  onSubmit?: () => void;
+}
+
 export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
   readonly address: string;
+  readonly chainId: number;
+  readonly domainName: string;
   readonly privateKey: string;
   readonly provider: Provider;
   readonly relayerUri: string;
@@ -33,12 +42,21 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
     address: string,
     provider: Provider,
     wallet?: Wallet,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    relayerUri: string = process.env.RELAYER_URI!,
-    onSubmit?: () => void,
+    config?: EssentialSignerConfig,
   ) {
     logger.checkNew(new.target, EssentialSigner);
     super();
+
+    const { chainId, domainName, relayerUri, onSubmit } = {
+      ...{
+        domainName: 'Essential Forwarder',
+        relayerUri: process.env.RELAYER_URI,
+        chainId: process.env.CHAIN_ID
+          ? parseInt(process.env.CHAIN_ID, 10)
+          : 137,
+      },
+      ...config,
+    };
 
     if (!relayerUri)
       logger.throwError('Relayer URI not set', Logger.errors.INVALID_ARGUMENT, {
@@ -47,9 +65,12 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       });
 
     defineReadOnly(this, 'address', address);
+    defineReadOnly(this, 'chainId', chainId);
+    defineReadOnly(this, 'domainName', domainName);
     defineReadOnly(this, 'provider', provider);
     wallet && defineReadOnly(this, 'privateKey', wallet.privateKey);
     defineReadOnly(this, 'relayerUri', relayerUri);
+
     if (onSubmit) this.onSubmit = onSubmit;
   }
 
@@ -70,23 +91,18 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       TransactionRequest & { customData: EssentialOverrides }
     >,
   ): Promise<TransactionResponse | any> {
-    // for us, this chain ID is the chain where our Forwarding and implementation contract live.
-    // our payload is network-agnostic, so it won't necessarily be the same chain as the provider.
-    const chain = process.env.CHAIN_ID
-      ? parseInt(process.env.CHAIN_ID, 10)
-      : 137;
-
     const result = await signMetaTxRequest(
       this.privateKey || this.provider,
-      chain,
+      this.chainId,
       {
         to: transaction.to,
         from: transaction.from,
         authorizer: transaction.from,
         ...transaction.customData,
-        targetChainId: chain,
+        targetChainId: this.chainId,
         data: transaction.data,
       },
+      this.domainName,
     );
 
     // SUBMITTING META TX EVENT
@@ -96,7 +112,7 @@ export class EssentialSigner extends Signer implements ExternallyOwnedAccount {
       method: 'POST',
       body: JSON.stringify({
         ...result,
-        forwarder: EssentialForwarderDeployments[chain],
+        forwarder: EssentialForwarderDeployments[this.chainId],
       }),
       headers: { 'Content-Type': 'application/json' },
     })

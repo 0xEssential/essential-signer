@@ -168,6 +168,7 @@ export async function signMetaTxRequest(
   signer: Web3Provider | Provider | string,
   chainId: number,
   input: Record<string, any>,
+  domainName?: string,
   forwarder?: EssentialForwarder | Contract,
 ): Promise<{
   signature: string;
@@ -181,7 +182,7 @@ export async function signMetaTxRequest(
     _forwarder.address,
     chainId,
     request,
-    '0xEssential PlaySession',
+    domainName || '0xEssential PlaySession',
     request.nftContract ? 'ForwardRequest' : 'MinimalRequest',
   );
 
